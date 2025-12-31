@@ -13,16 +13,16 @@ For dynasty and keeper leagues, it's useful to know how long players have been c
 
 ## How Tenure Is Calculated
 
-A player's tenure **increments** when they are kept from one season to the next without being:
-- Drafted in the league's rookie/annual draft
-- Picked up via free agency or waivers
+A player's tenure **increments** (KEPT) when:
+- They were rostered at the end of the previous season
+- They were NOT drafted this season
+- They were NOT picked up via free agency without their previous owner dropping them first
 
 A player's tenure **resets to zero** when they:
-- Enter the league through a draft
-- Are added via free agency or waivers
-- Are dropped and later re-acquired
+- Are drafted in the league's rookie/annual draft
+- Are picked up via FA/waivers after their previous owner released them to the pool (wasn't kept)
 
-This means tenure tracks *continuous* rostering through keeper/dynasty holds only.
+**Mid-season transactions don't break tenure.** If a player is kept at the start of the season, subsequent drops/trades/pickups during the season don't affect their tenure calculation.
 
 ## Installation
 

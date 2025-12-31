@@ -88,15 +88,50 @@ def get_drafted_players(league_id: str) -> set:
     return drafted
 
 
-def get_free_agent_adds(league_id: str) -> set:
-    """Get set of player IDs that were added via free_agent or waiver transactions."""
-    fa_adds = set()
+def get_fa_adds_without_prior_drop(league_id: str, prev_season_rosters: dict) -> set:
+    """
+    Get players who were picked up via FA/waiver without being dropped by their previous owner.
+
+    These players were NOT kept - they went straight to the FA pool at season start.
+
+    Args:
+        league_id: Current season's league ID
+        prev_season_rosters: Dict mapping player_id -> roster_id from end of previous season
+
+    Returns:
+        Set of player IDs that were FA adds without a prior drop from previous owner
+    """
+    # First, collect all drops and FA adds
+    drops_by_roster = {}  # player_id -> set of roster_ids that dropped them
+    fa_adds = set()  # player_ids added via FA/waiver
+
     for week in range(0, 19):
         for txn in api_get(f"league/{league_id}/transactions/{week}", []):
-            if txn.get('status') == 'complete' and txn.get('type') in ('free_agent', 'waiver'):
+            if txn.get('status') != 'complete':
+                continue
+
+            # Track drops
+            for player_id, roster_id in (txn.get('drops') or {}).items():
+                if player_id not in drops_by_roster:
+                    drops_by_roster[player_id] = set()
+                drops_by_roster[player_id].add(roster_id)
+
+            # Track FA/waiver adds
+            if txn.get('type') in ('free_agent', 'waiver'):
                 for player_id in (txn.get('adds') or {}).keys():
                     fa_adds.add(player_id)
-    return fa_adds
+
+    # Find FA adds where the previous owner never dropped them
+    not_kept = set()
+    for player_id in fa_adds:
+        prev_roster = prev_season_rosters.get(player_id)
+        if prev_roster is not None:
+            # Player was rostered last season - check if prev owner dropped them
+            if player_id not in drops_by_roster or prev_roster not in drops_by_roster[player_id]:
+                # Previous owner never dropped them - player wasn't kept
+                not_kept.add(player_id)
+
+    return not_kept
 
 
 def get_owner_name(users: list, owner_id: str) -> str:
@@ -128,6 +163,7 @@ def calculate_league_tenure(league_id: str, league_name: str, console) -> dict:
     player_first_season = {}
     last_owner = {}
     rostered_last_season = set()
+    prev_season_rosters = {}  # player_id -> roster_id from previous season
 
     for season in sorted(league_history.keys()):
         season_league_id = league_history[season]
@@ -135,22 +171,25 @@ def calculate_league_tenure(league_id: str, league_name: str, console) -> dict:
 
         rosters = api_get(f"league/{season_league_id}/rosters", [])
         drafted_players = get_drafted_players(season_league_id)
-        fa_adds = get_free_agent_adds(season_league_id)
+        not_kept_fa = get_fa_adds_without_prior_drop(season_league_id, prev_season_rosters)
 
         # Build current season's roster data
         rostered_this_season = set()
         player_to_owner = {}
+        player_to_roster = {}  # Track roster_id for next season's check
         for roster in rosters:
             owner_id = roster.get('owner_id')
+            roster_id = roster.get('roster_id')
             for player_id in (roster.get('players') or []):
                 rostered_this_season.add(player_id)
                 player_to_owner[player_id] = owner_id
+                player_to_roster[player_id] = roster_id
 
-        # Update tenure: increment only if kept (not drafted/FA and was rostered last season)
+        # Update tenure: increment only if kept (rostered last season, not drafted, not FA without prior drop)
         for player_id in rostered_this_season:
             was_kept = (player_id in rostered_last_season
                         and player_id not in drafted_players
-                        and player_id not in fa_adds)
+                        and player_id not in not_kept_fa)
 
             if was_kept:
                 player_tenure[player_id] = player_tenure.get(player_id, 0) + 1
@@ -161,6 +200,7 @@ def calculate_league_tenure(league_id: str, league_name: str, console) -> dict:
             last_owner[player_id] = player_to_owner[player_id]
 
         rostered_last_season = rostered_this_season
+        prev_season_rosters = player_to_roster
 
     # Build final tenure data (only players with tenure > 0 who are currently rostered)
     tenure_data = {}
