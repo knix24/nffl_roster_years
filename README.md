@@ -58,15 +58,15 @@ Calculating tenure for all teams in: Dynasty Champions League
   Processing 2025...
 
               Player Tenure - Dynasty Champions League
-┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
-┃ Player             ┃ Owner         ┃ Tenure ┃ First Kept ┃
-┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
-│ Josh Allen (QB)    │ FantasyPro    │      4 │ 2021       │
-│ Justin Jefferson (WR) │ GridironKing │     4 │ 2021       │
-│ Patrick Mahomes (QB) │ TeamAlpha    │      5 │ 2020       │
-│ Ja'Marr Chase (WR) │ TeamAlpha     │      3 │ 2022       │
-│ ...                │ ...           │    ... │ ...        │
-└────────────────────┴───────────────┴────────┴────────────┘
+┏━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Player                  ┃ Owner        ┃ Tenure ┃ First Kept ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ Josh Allen (QB)         │ FantasyPro   │      4 │ 2021       │
+│ Justin Jefferson (WR)   │ GridironKing │      4 │ 2021       │
+│ Patrick Mahomes (QB)    │ TeamAlpha    │      5 │ 2020       │
+│ Ja'Marr Chase (WR)      │ TeamAlpha    │      3 │ 2022       │
+│ ...                     │ ...          │    ... │ ...        │
+└─────────────────────────┴──────────────┴────────┴────────────┘
 
 Total players with tenure: 47
 ```
