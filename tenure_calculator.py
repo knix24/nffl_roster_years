@@ -144,21 +144,12 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
     return not_kept
 
 
-def get_team_name(rosters: list, users: list, owner_id: str) -> str:
-    """Get team name from roster metadata, falling back to user display name."""
-    # First try to get team name from roster metadata
+def get_team_name(rosters: list, owner_id: str) -> str:
+    """Get team name from roster metadata."""
     for roster in rosters:
         if roster.get('owner_id') == owner_id:
             metadata = roster.get('metadata') or {}
-            team_name = metadata.get('team_name')
-            if team_name:
-                return team_name
-            break
-
-    # Fall back to user display name
-    for user in users:
-        if user.get('user_id') == owner_id:
-            return user.get('display_name') or user.get('username') or owner_id
+            return metadata.get('team_name') or owner_id
     return owner_id or "Unknown"
 
 
@@ -167,7 +158,7 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     Calculate how many consecutive seasons each player has been kept.
 
     Returns dict: {
-        (owner_name, player_id): {
+        (team_name, player_id): {
             'tenure': int,
             'first_season': int,
             'owner_id': str
@@ -177,7 +168,6 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     league_history = trace_league_history(league_id, END_SEASON)
     console.print(f"  Found {len(league_history)} seasons of history: {sorted(league_history.keys())}")
 
-    current_users = api_get(f"league/{league_id}/users", [])
     current_rosters = api_get(f"league/{league_id}/rosters", [])
 
     player_tenure = {}
@@ -224,7 +214,7 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     for player_id, tenure in player_tenure.items():
         if player_id in prev_season_rosters:
             owner_id = last_owner.get(player_id)
-            team_name = get_team_name(current_rosters, current_users, owner_id)
+            team_name = get_team_name(current_rosters, owner_id)
             tenure_data[(team_name, player_id)] = {
                 'tenure': tenure,
                 'first_season': player_first_season.get(player_id),
@@ -290,22 +280,22 @@ def main():
     # Build table
     table = Table(title=f"\nPlayer Tenure - {league_name}")
     table.add_column("Player", style="cyan")
-    table.add_column("Owner", style="green")
+    table.add_column("Team", style="green")
     table.add_column("Tenure", justify="right", style="magenta")
     table.add_column("First Kept", justify="right")
 
-    # Sort by owner name ascending, then by tenure descending
+    # Sort by team name ascending, then by tenure descending
     sorted_data = sorted(
         tenure_data.items(),
         key=lambda x: (x[0][0].lower(), -x[1]['tenure'])
     )
 
-    for (owner_name, player_id), data in sorted_data:
+    for (team_name, player_id), data in sorted_data:
         player_name = get_player_name(players, player_id)
         tenure = str(data['tenure'])
         first_season = str(data['first_season']) if data['first_season'] else "N/A"
 
-        table.add_row(player_name, owner_name, tenure, first_season)
+        table.add_row(player_name, team_name, tenure, first_season)
 
     console.print(table)
     console.print(f"\n[dim]Total players with tenure: {len(tenure_data)}[/dim]")
