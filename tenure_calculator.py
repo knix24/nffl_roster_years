@@ -144,8 +144,18 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
     return not_kept
 
 
-def get_owner_name(users: list, owner_id: str) -> str:
-    """Get owner display name from user list."""
+def get_team_name(rosters: list, users: list, owner_id: str) -> str:
+    """Get team name from roster metadata, falling back to user display name."""
+    # First try to get team name from roster metadata
+    for roster in rosters:
+        if roster.get('owner_id') == owner_id:
+            metadata = roster.get('metadata') or {}
+            team_name = metadata.get('team_name')
+            if team_name:
+                return team_name
+            break
+
+    # Fall back to user display name
     for user in users:
         if user.get('user_id') == owner_id:
             return user.get('display_name') or user.get('username') or owner_id
@@ -168,6 +178,7 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     console.print(f"  Found {len(league_history)} seasons of history: {sorted(league_history.keys())}")
 
     current_users = api_get(f"league/{league_id}/users", [])
+    current_rosters = api_get(f"league/{league_id}/rosters", [])
 
     player_tenure = {}
     player_first_season = {}
@@ -213,8 +224,8 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     for player_id, tenure in player_tenure.items():
         if player_id in prev_season_rosters:
             owner_id = last_owner.get(player_id)
-            owner_name = get_owner_name(current_users, owner_id)
-            tenure_data[(owner_name, player_id)] = {
+            team_name = get_team_name(current_rosters, current_users, owner_id)
+            tenure_data[(team_name, player_id)] = {
                 'tenure': tenure,
                 'first_season': player_first_season.get(player_id),
                 'owner_id': owner_id,
