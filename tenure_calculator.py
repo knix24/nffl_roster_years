@@ -49,8 +49,8 @@ def get_player_name(players: dict, player_id: str) -> str:
     if player_id in players:
         p = players[player_id]
         name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
-        pos = p.get('position', '')
-        return f"{name} ({pos})" if pos else name
+        position = p.get('position', '')
+        return f"{name} ({position})" if position else name
     return player_id
 
 
@@ -148,7 +148,7 @@ def get_owner_name(users: list, owner_id: str) -> str:
     """Get owner display name from user list."""
     for user in users:
         if user.get('user_id') == owner_id:
-            return user.get('display_name') or user.get('username') or owner_id
+            return user.get('display_name') or owner_id
     return owner_id or "Unknown"
 
 
