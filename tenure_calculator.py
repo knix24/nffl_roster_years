@@ -94,7 +94,10 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
 
     A player is NOT kept if:
     - They were picked up via FA/waiver AND their previous owner never dropped them, OR
-    - Their previous owner dropped them in weeks 0-1 (pre-season roster cleanup)
+    - Their previous owner dropped them pre-draft (weeks 0-1 in Sleeper API)
+
+    Note: Sleeper API weeks 0-1 represent the pre-draft period, after the previous
+    season ends but before the new season's draft occurs.
 
     Args:
         league_id: Current season's league ID
@@ -103,10 +106,9 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
     Returns:
         Set of player IDs that were not kept
     """
-    # Track drops by roster and week, and FA adds
     drops_by_roster = {}  # player_id -> set of roster_ids that dropped them
-    preseason_drops = {}  # player_id -> set of roster_ids that dropped them in weeks 0-1
-    fa_adds = set()  # player_ids added via FA/waiver
+    pre_draft_drops = {}  # player_id -> set of roster_ids that dropped them pre-draft
+    fa_adds = set()
 
     for week in range(0, 19):
         for txn in api_get(f"league/{league_id}/transactions/{week}", []):
@@ -116,9 +118,9 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
             # Track drops
             for player_id, roster_id in (txn.get('drops') or {}).items():
                 drops_by_roster.setdefault(player_id, set()).add(roster_id)
-                # Track pre-season drops separately (weeks 0-1)
+                # Weeks 0-1 in Sleeper = pre-draft period
                 if week <= 1:
-                    preseason_drops.setdefault(player_id, set()).add(roster_id)
+                    pre_draft_drops.setdefault(player_id, set()).add(roster_id)
 
             # Track FA/waiver adds
             if txn.get('type') in ('free_agent', 'waiver'):
@@ -130,10 +132,10 @@ def get_not_kept_players(league_id: str, prev_season_rosters: dict) -> set:
         prev_roster = prev_season_rosters.get(player_id)
         if prev_roster is not None:
             # Player was rostered last season
-            # Check if prev owner dropped them in pre-season (not kept)
-            if player_id in preseason_drops and prev_roster in preseason_drops[player_id]:
+            # Not kept if: prev owner dropped them pre-draft
+            if player_id in pre_draft_drops and prev_roster in pre_draft_drops[player_id]:
                 not_kept.add(player_id)
-            # Or if prev owner never dropped them at all (went straight to FA)
+            # Not kept if: prev owner never dropped them (went straight to FA pool)
             elif player_id not in drops_by_roster or prev_roster not in drops_by_roster[player_id]:
                 not_kept.add(player_id)
 
