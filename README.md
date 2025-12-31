@@ -6,7 +6,7 @@ A command-line tool that calculates how many consecutive seasons each player has
 
 For dynasty and keeper leagues, it's useful to know how long players have been continuously rostered. This tool analyzes your league's history and shows you:
 
-- **Player** - The player's name
+- **Player** - The player's name and position (e.g., "Josh Allen (QB)")
 - **Owner** - Who currently has them rostered
 - **Tenure** - How many consecutive seasons they've been kept
 - **First Kept** - The season when the current "kept" streak began
@@ -61,10 +61,10 @@ Calculating tenure for all teams in: Dynasty Champions League
 ┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ Player             ┃ Owner         ┃ Tenure ┃ First Kept ┃
 ┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
-│ Patrick Mahomes    │ TeamAlpha     │      5 │ 2020       │
-│ Justin Jefferson   │ GridironKing  │      4 │ 2021       │
-│ Josh Allen         │ FantasyPro    │      4 │ 2021       │
-│ Ja'Marr Chase      │ TeamAlpha     │      3 │ 2022       │
+│ Josh Allen (QB)    │ FantasyPro    │      4 │ 2021       │
+│ Justin Jefferson (WR) │ GridironKing │     4 │ 2021       │
+│ Patrick Mahomes (QB) │ TeamAlpha    │      5 │ 2020       │
+│ Ja'Marr Chase (WR) │ TeamAlpha     │      3 │ 2022       │
 │ ...                │ ...           │    ... │ ...        │
 └────────────────────┴───────────────┴────────┴────────────┘
 
@@ -77,7 +77,7 @@ Total players with tenure: 47
 2. Traces the league's history back through previous seasons (via Sleeper's `previous_league_id`)
 3. For each season, fetches rosters, draft picks, and transactions
 4. Calculates tenure by checking if each rostered player was kept vs. acquired fresh
-5. Displays results sorted by tenure (highest first)
+5. Displays results sorted by owner name, then by tenure (highest first) within each owner
 
 ## Notes
 
