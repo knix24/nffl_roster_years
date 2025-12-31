@@ -152,7 +152,7 @@ def get_owner_name(users: list, owner_id: str) -> str:
 
 def calculate_league_tenure(league_id: str, console) -> dict:
     """
-    Calculate league-wide player tenure (how long rostered anywhere in the league).
+    Calculate how many consecutive seasons each player has been kept.
 
     Returns dict: {
         (owner_name, player_id): {
@@ -170,7 +170,6 @@ def calculate_league_tenure(league_id: str, console) -> dict:
     player_tenure = {}
     player_first_season = {}
     last_owner = {}
-    rostered_last_season = set()
     prev_season_rosters = {}  # player_id -> roster_id from previous season
 
     for season in sorted(league_history.keys()):
@@ -182,38 +181,35 @@ def calculate_league_tenure(league_id: str, console) -> dict:
         not_kept = get_not_kept_players(season_league_id, prev_season_rosters)
 
         # Build current season's roster data
-        rostered_this_season = set()
         player_to_owner = {}
-        player_to_roster = {}  # Track roster_id for next season's check
+        player_to_roster = {}
         for roster in rosters:
             owner_id = roster.get('owner_id')
             roster_id = roster.get('roster_id')
             for player_id in (roster.get('players') or []):
-                rostered_this_season.add(player_id)
                 player_to_owner[player_id] = owner_id
                 player_to_roster[player_id] = roster_id
 
         # Update tenure: increment only if kept (rostered last season, not drafted, not in not-kept list)
-        for player_id in rostered_this_season:
-            was_kept = (player_id in rostered_last_season
+        for player_id in player_to_roster:
+            was_kept = (player_id in prev_season_rosters
                         and player_id not in drafted_players
                         and player_id not in not_kept)
 
             if was_kept:
                 player_tenure[player_id] = player_tenure.get(player_id, 0) + 1
             else:
-                player_tenure[player_id] = 0
+                player_tenure.pop(player_id, None)  # Remove any previous tenure
                 player_first_season[player_id] = season
 
             last_owner[player_id] = player_to_owner[player_id]
 
-        rostered_last_season = rostered_this_season
         prev_season_rosters = player_to_roster
 
     # Build final tenure data (only players with tenure > 0 who are currently rostered)
     tenure_data = {}
     for player_id, tenure in player_tenure.items():
-        if tenure > 0 and player_id in rostered_last_season:
+        if player_id in prev_season_rosters:
             owner_id = last_owner.get(player_id)
             owner_name = get_owner_name(current_users, owner_id)
             tenure_data[(owner_name, player_id)] = {
