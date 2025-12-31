@@ -275,10 +275,10 @@ def main():
     table.add_column("Tenure", justify="right", style="magenta")
     table.add_column("First Kept", justify="right")
 
-    # Sort by tenure descending, then by owner name
+    # Sort by owner name ascending, then by tenure descending
     sorted_data = sorted(
         tenure_data.items(),
-        key=lambda x: (-x[1]['tenure'], x[0][0])
+        key=lambda x: (x[0][0].lower(), -x[1]['tenure'])
     )
 
     for (owner_name, player_id), data in sorted_data:
