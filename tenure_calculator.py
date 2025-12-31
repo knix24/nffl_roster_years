@@ -45,10 +45,12 @@ def get_players() -> dict:
 
 
 def get_player_name(players: dict, player_id: str) -> str:
-    """Get player's full name from player ID."""
+    """Get player's full name and position from player ID."""
     if player_id in players:
         p = players[player_id]
-        return f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+        name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+        pos = p.get('position', '')
+        return f"{name} ({pos})" if pos else name
     return player_id
 
 
