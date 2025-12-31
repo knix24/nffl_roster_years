@@ -2,8 +2,8 @@
 """
 Sleeper Player Tenure Calculator
 
-Calculates consecutive seasons a player has been rostered across all teams
-in a league without being drafted as a free agent.
+Calculates consecutive seasons a player has been kept (not drafted or picked
+up from free agency) in a Sleeper fantasy football league.
 
 Usage: python tenure_calculator.py <username>
 """
@@ -112,9 +112,7 @@ def get_fa_adds_without_prior_drop(league_id: str, prev_season_rosters: dict) ->
 
             # Track drops
             for player_id, roster_id in (txn.get('drops') or {}).items():
-                if player_id not in drops_by_roster:
-                    drops_by_roster[player_id] = set()
-                drops_by_roster[player_id].add(roster_id)
+                drops_by_roster.setdefault(player_id, set()).add(roster_id)
 
             # Track FA/waiver adds
             if txn.get('type') in ('free_agent', 'waiver'):
@@ -142,7 +140,7 @@ def get_owner_name(users: list, owner_id: str) -> str:
     return owner_id or "Unknown"
 
 
-def calculate_league_tenure(league_id: str, league_name: str, console) -> dict:
+def calculate_league_tenure(league_id: str, console) -> dict:
     """
     Calculate league-wide player tenure (how long rostered anywhere in the league).
 
@@ -264,7 +262,7 @@ def main():
 
     # Calculate tenure for all teams
     console.print(f"[bold]Calculating tenure for all teams in: {league_name}[/bold]")
-    tenure_data = calculate_league_tenure(league_id, league_name, console)
+    tenure_data = calculate_league_tenure(league_id, console)
 
     if not tenure_data:
         console.print("[yellow]No tenure data found.[/yellow]")
