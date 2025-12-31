@@ -10,9 +10,7 @@ Usage: python tenure_calculator.py <username>
 
 import sys
 import json
-import os
 from pathlib import Path
-from collections import defaultdict
 
 import requests
 from rich.console import Console
@@ -24,66 +22,12 @@ START_SEASON = 2017
 END_SEASON = 2025
 
 
-def fetch_user(username: str) -> dict | None:
-    """Fetch user data by username."""
-    resp = requests.get(f"{BASE_URL}/user/{username}")
+def api_get(endpoint: str, default=None):
+    """Generic API fetch from Sleeper."""
+    resp = requests.get(f"{BASE_URL}/{endpoint}")
     if resp.status_code == 200 and resp.json():
         return resp.json()
-    return None
-
-
-def fetch_state() -> dict:
-    """Fetch current NFL state (season, week, etc.)."""
-    resp = requests.get(f"{BASE_URL}/state/nfl")
-    return resp.json()
-
-
-def fetch_leagues(user_id: str, season: int) -> list:
-    """Fetch all NFL leagues for a user in a given season."""
-    resp = requests.get(f"{BASE_URL}/user/{user_id}/leagues/nfl/{season}")
-    if resp.status_code == 200:
-        return resp.json() or []
-    return []
-
-
-def fetch_rosters(league_id: str) -> list:
-    """Fetch all rosters for a league."""
-    resp = requests.get(f"{BASE_URL}/league/{league_id}/rosters")
-    if resp.status_code == 200:
-        return resp.json() or []
-    return []
-
-
-def fetch_league_users(league_id: str) -> list:
-    """Fetch all users in a league."""
-    resp = requests.get(f"{BASE_URL}/league/{league_id}/users")
-    if resp.status_code == 200:
-        return resp.json() or []
-    return []
-
-
-def fetch_drafts(league_id: str) -> list:
-    """Fetch all drafts for a league."""
-    resp = requests.get(f"{BASE_URL}/league/{league_id}/drafts")
-    if resp.status_code == 200:
-        return resp.json() or []
-    return []
-
-
-def fetch_draft_picks(draft_id: str) -> list:
-    """Fetch all picks from a draft."""
-    resp = requests.get(f"{BASE_URL}/draft/{draft_id}/picks")
-    if resp.status_code == 200:
-        return resp.json() or []
-    return []
-
-
-def fetch_league(league_id: str) -> dict | None:
-    """Fetch league details."""
-    resp = requests.get(f"{BASE_URL}/league/{league_id}")
-    if resp.status_code == 200:
-        return resp.json()
-    return None
+    return default
 
 
 def get_players() -> dict:
@@ -93,13 +37,11 @@ def get_players() -> dict:
             return json.load(f)
 
     print("Fetching player database (this may take a moment)...")
-    resp = requests.get(f"{BASE_URL}/players/nfl")
-    if resp.status_code == 200:
-        players = resp.json()
+    players = api_get("players/nfl", {})
+    if players:
         with open(CACHE_FILE, 'w') as f:
             json.dump(players, f)
-        return players
-    return {}
+    return players
 
 
 def get_player_name(players: dict, player_id: str) -> str:
@@ -121,7 +63,7 @@ def trace_league_history(league_id: str, target_season: int) -> dict:
 
     while current_id and current_season >= START_SEASON:
         history[current_season] = current_id
-        league = fetch_league(current_id)
+        league = api_get(f"league/{current_id}")
         if not league:
             break
         prev_id = league.get('previous_league_id')
@@ -134,27 +76,15 @@ def trace_league_history(league_id: str, target_season: int) -> dict:
     return history
 
 
-def find_user_roster(rosters: list, user_id: str) -> dict | None:
-    """Find the roster belonging to a specific user."""
-    for roster in rosters:
-        if roster.get('owner_id') == user_id:
-            return roster
-    return None
-
-
-def get_drafted_players(league_id: str) -> dict:
-    """Get dict of player IDs that were drafted, mapped to roster_id that drafted them."""
-    drafted = {}  # player_id -> roster_id
-    drafts = fetch_drafts(league_id)
-    for draft in drafts:
+def get_drafted_players(league_id: str) -> set:
+    """Get set of player IDs that were drafted in this league."""
+    drafted = set()
+    for draft in api_get(f"league/{league_id}/drafts", []):
         draft_id = draft.get('draft_id')
         if draft_id:
-            picks = fetch_draft_picks(draft_id)
-            for pick in picks:
-                player_id = pick.get('player_id')
-                roster_id = pick.get('roster_id')
-                if player_id:
-                    drafted[player_id] = roster_id
+            for pick in api_get(f"draft/{draft_id}/picks", []):
+                if pick.get('player_id'):
+                    drafted.add(pick['player_id'])
     return drafted
 
 
@@ -162,17 +92,10 @@ def get_free_agent_adds(league_id: str) -> set:
     """Get set of player IDs that were added via free_agent or waiver transactions."""
     fa_adds = set()
     for week in range(0, 19):
-        resp = requests.get(f"{BASE_URL}/league/{league_id}/transactions/{week}")
-        if resp.status_code == 200:
-            txns = resp.json() or []
-            for txn in txns:
-                txn_type = txn.get('type')
-                status = txn.get('status')
-                # Only count completed free_agent or waiver adds
-                if status == 'complete' and txn_type in ('free_agent', 'waiver'):
-                    adds = txn.get('adds') or {}
-                    for player_id in adds.keys():
-                        fa_adds.add(player_id)
+        for txn in api_get(f"league/{league_id}/transactions/{week}", []):
+            if txn.get('status') == 'complete' and txn.get('type') in ('free_agent', 'waiver'):
+                for player_id in (txn.get('adds') or {}).keys():
+                    fa_adds.add(player_id)
     return fa_adds
 
 
@@ -196,115 +119,59 @@ def calculate_league_tenure(league_id: str, league_name: str, console) -> dict:
         }
     }
     """
-    # Get the full history of this league
     league_history = trace_league_history(league_id, END_SEASON)
     console.print(f"  Found {len(league_history)} seasons of history: {sorted(league_history.keys())}")
 
-    # Get current league users for display names
-    current_users = fetch_league_users(league_id)
+    current_users = api_get(f"league/{league_id}/users", [])
 
-    # Track league-wide tenure per player
-    player_tenure = {}  # player_id -> tenure
-    player_first_season = {}  # player_id -> first_season
-
-    # Track last known owner and current roster status
-    last_owner = {}  # player_id -> owner_id (last team they were on)
-    currently_rostered = set()  # players on a roster in the final season
-
-    # Track players rostered in the previous season
+    player_tenure = {}
+    player_first_season = {}
+    last_owner = {}
     rostered_last_season = set()
 
-    # Process seasons from oldest to newest
-    sorted_seasons = sorted(league_history.keys())
-
-    for season in sorted_seasons:
+    for season in sorted(league_history.keys()):
         season_league_id = league_history[season]
         console.print(f"  Processing {season}...")
 
-        # Get all rosters for this season
-        rosters = fetch_rosters(season_league_id)
-
-        # Get players drafted this season
+        rosters = api_get(f"league/{season_league_id}/rosters", [])
         drafted_players = get_drafted_players(season_league_id)
-
-        # Get players added via free agent or waiver this season
         fa_adds = get_free_agent_adds(season_league_id)
 
-        # Collect all rostered players this season
-        all_rostered_this_season = set()
-        player_to_owner = {}  # player_id -> owner_id for this season
-
+        # Build current season's roster data
+        rostered_this_season = set()
+        player_to_owner = {}
         for roster in rosters:
             owner_id = roster.get('owner_id')
-            roster_players = set(roster.get('players') or [])
-
-            for player_id in roster_players:
-                all_rostered_this_season.add(player_id)
+            for player_id in (roster.get('players') or []):
+                rostered_this_season.add(player_id)
                 player_to_owner[player_id] = owner_id
 
-        # Build roster_id -> owner_id mapping for this season
-        roster_to_owner = {}
-        for roster in rosters:
-            roster_to_owner[roster.get('roster_id')] = roster.get('owner_id')
+        # Update tenure: increment only if kept (not drafted/FA and was rostered last season)
+        for player_id in rostered_this_season:
+            was_kept = (player_id in rostered_last_season
+                        and player_id not in drafted_players
+                        and player_id not in fa_adds)
 
-        # Update tenure for each rostered player
-        for player_id in all_rostered_this_season:
-            if player_id in drafted_players:
-                # Player was drafted this season - tenure starts at 0
-                player_tenure[player_id] = 0
-                player_first_season[player_id] = season
-            elif player_id in fa_adds:
-                # Player was added via free agent/waiver - tenure = 0
-                player_tenure[player_id] = 0
-                player_first_season[player_id] = season
-            elif player_id in rostered_last_season:
-                # Player was kept from last season (not drafted, not FA pickup) - increment tenure
+            if was_kept:
                 player_tenure[player_id] = player_tenure.get(player_id, 0) + 1
             else:
-                # First time seeing this player - tenure = 0
                 player_tenure[player_id] = 0
                 player_first_season[player_id] = season
 
-            # Track last known owner
             last_owner[player_id] = player_to_owner[player_id]
 
-        # Also handle drafted players who are NOT currently rostered (dropped after draft)
-        for player_id, draft_roster_id in drafted_players.items():
-            if player_id not in all_rostered_this_season:
-                # Player was drafted but dropped - reset tenure to 0
-                player_tenure[player_id] = 0
-                player_first_season[player_id] = season
-                # Track the drafting team as last owner
-                last_owner[player_id] = roster_to_owner.get(draft_roster_id)
+        rostered_last_season = rostered_this_season
 
-        # Handle players who were rostered last season but are NOT rostered this season
-        # and were NOT drafted (they were dropped) - reset their tenure to 0
-        for player_id in rostered_last_season:
-            if player_id not in all_rostered_this_season and player_id not in drafted_players:
-                # Player was dropped and not re-drafted - reset tenure to 0
-                player_tenure[player_id] = 0
-
-        # Update for next iteration
-        rostered_last_season = all_rostered_this_season
-
-    # Track who is currently rostered (in the final season)
-    currently_rostered = all_rostered_this_season
-
-    # Build final tenure data with owner names (only players with tenure > 0)
+    # Build final tenure data (only players with tenure > 0 who are currently rostered)
     tenure_data = {}
     for player_id, tenure in player_tenure.items():
-        if tenure > 0:  # Only include players with non-zero tenure
+        if tenure > 0 and player_id in rostered_last_season:
             owner_id = last_owner.get(player_id)
             owner_name = get_owner_name(current_users, owner_id)
-            first_season = player_first_season.get(player_id)
-            is_rostered = player_id in currently_rostered
-
-            key = (owner_name, player_id)
-            tenure_data[key] = {
+            tenure_data[(owner_name, player_id)] = {
                 'tenure': tenure,
-                'first_season': first_season,
+                'first_season': player_first_season.get(player_id),
                 'owner_id': owner_id,
-                'rostered': is_rostered
             }
 
     return tenure_data
@@ -321,7 +188,7 @@ def main():
     console.print(f"\n[bold]Fetching data for user: {username}[/bold]\n")
 
     # Get user
-    user = fetch_user(username)
+    user = api_get(f"user/{username}")
     if not user:
         console.print(f"[red]User '{username}' not found[/red]")
         sys.exit(1)
@@ -335,7 +202,7 @@ def main():
     console.print(f"Loaded {len(players)} players\n")
 
     # Get user's leagues
-    leagues = fetch_leagues(user_id, END_SEASON)
+    leagues = api_get(f"user/{user_id}/leagues/nfl/{END_SEASON}", [])
     if not leagues:
         console.print("[yellow]No leagues found for this user.[/yellow]")
         sys.exit(0)
