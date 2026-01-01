@@ -1,90 +1,104 @@
-# Sleeper Dynasty Tenure Calculator
+# Sleeper Dynasty Tenure Tracker
 
-A command-line tool that calculates how many consecutive seasons each player has been kept on a roster in your [Sleeper](https://sleeper.com) fantasy football league.
+A command-line tool that calculates how many consecutive seasons each player has been kept (not drafted) while remaining on a roster in your [Sleeper](https://sleeper.com) fantasy football league.
 
 ## What It Does
 
-For dynasty and keeper leagues, it's useful to know how long players have been continuously rostered. This tool analyzes your league's history and shows you:
+For dynasty and keeper leagues, this tool analyzes your league's history and shows players with tenure > 0:
 
-- **Player** - The player's name and position (e.g., "Josh Allen (QB)")
-- **Owner** - Who currently has them rostered
-- **Tenure** - How many consecutive seasons they've been kept
-- **First Kept** - The season when the current "kept" streak began
+| Column | Description |
+|--------|-------------|
+| Player | Player's name |
+| Pos | Position |
+| Owner | Current roster owner |
+| Tenure | Consecutive seasons kept |
+| First Drafted | Season when the player was originally drafted |
 
 ## How Tenure Is Calculated
 
-A player's tenure **increments** (KEPT) when:
-- They were rostered at the end of the previous season
-- They were NOT drafted this season
-- They were NOT picked up via free agency without their previous owner dropping them first
+Tenure is a **league-wide** concept tracking how many consecutive seasons a player has avoided the draft while remaining rostered.
 
-A player's tenure **resets to zero** when they:
-- Are drafted in the league's rookie/annual draft
-- Are picked up via FA/waivers after their previous owner released them to the pool (wasn't kept)
+**Tenure = 0** when:
+- Player is drafted by ANY team in the league
 
-**Mid-season transactions don't break tenure.** If a player is kept at the start of the season, subsequent drops/trades/pickups during the season don't affect their tenure calculation.
+**Tenure increments (+1)** when:
+- Player is on ANY team's week 1 roster
+- Player was NOT drafted in that season's draft
+- Player was in the league the previous season (on week 1 roster OR drafted)
+
+**Tenure resets to 0** when:
+- Player is drafted by any team, OR
+- Player is not on any week 1 roster (dropped/not kept)
+
+### Example
+
+| Season | Event | Tenure |
+|--------|-------|--------|
+| 2022 | Drafted by Team A | 0 |
+| 2023 | Kept by Team B (traded mid-season) | 1 |
+| 2024 | Kept by Team B | 2 |
+| 2025 | Drafted by Team C | 0 (reset) |
 
 ## Installation
 
-Requires Python 3.10+
+Requires Python 3.6+ and the `requests` library.
 
 ```bash
-pip install requests rich
+pip install requests
 ```
 
 ## Usage
 
 ```bash
-python tenure_calculator.py <sleeper_username>
+python tenure_tracker.py <sleeper_username> [season]
 ```
 
-Replace `<sleeper_username>` with your Sleeper username or any league member's username.
+- `sleeper_username`: Your Sleeper username (or any league member)
+- `season`: (optional) Season year, defaults to 2025
 
 ## Example Output
 
 ```
-Fetching data for user: fantasypro123
+Fetching data for angus0024... OK
+League: NFFL 30th ANNIVERSARY SZN
+Tracing league history... OK (4 seasons: 2022, 2023, 2024, 2025)
+Calculating tenure... OK
+Fetching current rosters... OK
+Fetching player database... OK
 
-Found user: FantasyPro (ID: 123456789)
-Loaded 15432 players
+Player               Pos  Owner           Tenure  First Drafted
+===============================================================
+Josh Jacobs          RB   angus0024            3  2022
+Amon-Ra St. Brown    WR   angus0024            3  2022
+Jahmyr Gibbs         RB   angus0024            2  2023
+Bucky Irving         RB   angus0024            1  2024
+...
+Courtland Sutton     WR   write2dkv            2  2022
+Chase Brown          RB   write2dkv            1  2023
 
-Calculating tenure for all teams in: Dynasty Champions League
-  Found 6 seasons of history: [2020, 2021, 2022, 2023, 2024, 2025]
-  Processing 2020...
-  Processing 2021...
-  Processing 2022...
-  Processing 2023...
-  Processing 2024...
-  Processing 2025...
-
-              Player Tenure - Dynasty Champions League
-┏━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
-┃ Player                  ┃ Owner        ┃ Tenure ┃ First Kept ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
-│ Josh Allen (QB)         │ FantasyPro   │      4 │ 2021       │
-│ Justin Jefferson (WR)   │ GridironKing │      4 │ 2021       │
-│ Patrick Mahomes (QB)    │ TeamAlpha    │      5 │ 2020       │
-│ Ja'Marr Chase (WR)      │ TeamAlpha    │      3 │ 2022       │
-│ ...                     │ ...          │    ... │ ...        │
-└─────────────────────────┴──────────────┴────────┴────────────┘
-
-Total players with tenure: 47
+Total players with tenure > 0: 53
 ```
+
+Results are sorted by owner (ascending), then by tenure (descending).
 
 ## How It Works
 
-1. Looks up the user and finds their leagues for the current season
-2. Traces the league's history back through previous seasons (via Sleeper's `previous_league_id`)
-3. For each season, fetches rosters, draft picks, and transactions
-4. Calculates tenure by checking if each rostered player was kept vs. acquired fresh
-5. Displays results sorted by owner name, then by tenure (highest first) within each owner
+1. Looks up the user and finds their leagues for the specified season
+2. Traces the league's history back through all previous seasons (via `previous_league_id`)
+3. For each season:
+   - Fetches draft picks to identify drafted players
+   - Fetches week 1 matchups to get rosters at season start
+4. Calculates tenure chronologically from oldest to newest season:
+   - Players drafted get tenure = 0
+   - Players kept (on week 1 roster, not drafted, were in league previous season) get tenure + 1
+   - Players not on any week 1 roster get tenure reset to 0
+5. Displays results for currently rostered players with tenure > 0
 
 ## Notes
 
-- The player database is cached locally (`players_cache.json`) after the first run
-- If you have multiple leagues, the tool currently uses the first one listed
-- League history is traced back to 2017 or the league's first season
-- Only players with tenure > 0 who are currently rostered are shown
+- `<YEAR` in First Drafted (e.g., `<2022`) means the player was a keeper in the earliest season but was drafted before the league history begins
+- If you have multiple leagues, the tool uses the first one found
+- Only players currently rostered with tenure > 0 are shown
 
 ## API
 
