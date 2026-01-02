@@ -245,6 +245,12 @@ def main() -> None:
         action="store_true",
         help="Force refresh of cached player database"
     )
+    parser.add_argument(
+        "--league",
+        type=int,
+        metavar="N",
+        help="Select league number N (use with --csv to skip prompt)"
+    )
     args = parser.parse_args()
 
     username = args.username
@@ -264,8 +270,37 @@ def main() -> None:
         print(f"No NFL leagues found for {username} in {season}", file=sys.stderr)
         sys.exit(1)
 
-    # Use first league (or could prompt for selection)
-    current_league = leagues[0]
+    # Select league
+    if args.league is not None:
+        # Use specified league number
+        if args.league < 1 or args.league > len(leagues):
+            print(f"Error: League number must be between 1 and {len(leagues)}", file=sys.stderr)
+            sys.exit(1)
+        current_league = leagues[args.league - 1]
+    elif len(leagues) == 1:
+        # Only one league, use it
+        current_league = leagues[0]
+    else:
+        # Multiple leagues, prompt for selection
+        print(f"\nFound {len(leagues)} leagues for {username}:")
+        for i, league in enumerate(leagues, 1):
+            print(f"  {i}. {league['name']}")
+        print()
+        while True:
+            try:
+                choice = input(f"Select league (1-{len(leagues)}): ").strip()
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(leagues):
+                    current_league = leagues[choice_num - 1]
+                    break
+                print(f"Please enter a number between 1 and {len(leagues)}")
+            except ValueError:
+                print("Please enter a valid number")
+            except (KeyboardInterrupt, EOFError):
+                print("\nCancelled")
+                sys.exit(0)
+        print()
+
     if not output_csv:
         print(f"League: {current_league['name']}")
 

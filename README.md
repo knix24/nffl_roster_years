@@ -58,6 +58,7 @@ python tenure_tracker.py <sleeper_username> [season] [options]
 **Options:**
 - `--csv`: Output in CSV format (for spreadsheets)
 - `--refresh`: Force refresh of cached player database
+- `--league N`: Select league number N (skips prompt when user has multiple leagues)
 - `-h, --help`: Show help message
 
 ## Example Output
@@ -100,7 +101,7 @@ Results are sorted by owner (ascending), then by tenure (descending).
 
 ## Notes
 
-- If you have multiple leagues, the tool uses the first one found
+- If you have multiple leagues, the tool prompts you to select one (use `--league N` to skip the prompt)
 - Player database is cached locally for 24 hours (`~/.cache/sleeper-tenure-tracker/`)
 
 ## API
