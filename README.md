@@ -11,7 +11,7 @@ For dynasty and keeper leagues, this tool analyzes your league's history and sho
 | Player | Player's name |
 | Pos | Position |
 | Owner | Current roster owner |
-| Tenure | Consecutive seasons kept |
+| Tenure (YEAR) | Projected tenure for next season if kept |
 
 ## How Tenure Is Calculated
 
@@ -67,15 +67,15 @@ Calculating tenure... OK
 Fetching current rosters... OK
 Fetching player database... OK
 
-Player               Pos  Owner           Tenure
-================================================
-Josh Jacobs          RB   angus0024            3
-Amon-Ra St. Brown    WR   angus0024            3
-Jahmyr Gibbs         RB   angus0024            2
-Bucky Irving         RB   angus0024            1
+Player               Pos  Owner           Tenure (2026)
+========================================================
+Josh Jacobs          RB   angus0024                    4
+Amon-Ra St. Brown    WR   angus0024                    4
+Jahmyr Gibbs         RB   angus0024                    3
+Bucky Irving         RB   angus0024                    2
 ...
-Courtland Sutton     WR   write2dkv            2
-Chase Brown          RB   write2dkv            1
+Courtland Sutton     WR   write2dkv                    3
+Chase Brown          RB   write2dkv                    2
 
 Total players with tenure > 0: 53
 ```

@@ -272,19 +272,21 @@ def main():
     results.sort(key=lambda x: (x["owner"].lower(), -x["tenure"]))
 
     # Calculate column widths
+    next_season = int(season) + 1
+    tenure_header = f"Tenure ({next_season})"
     col_player = max(len("Player"), max((len(r["player"]) for r in results), default=0))
     col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
     col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
-    col_tenure = len("Tenure")
+    col_tenure = len(tenure_header)
 
     # Print table
     print()
-    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {'Tenure':>{col_tenure}}"
+    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {tenure_header:>{col_tenure}}"
     print(header)
     print("=" * len(header))
 
     for r in results:
-        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}")
+        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure'] + 1:>{col_tenure}}")
 
     print()
     print(f"Total players with tenure > 0: {len(results)}")
