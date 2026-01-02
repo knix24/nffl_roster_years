@@ -6,11 +6,15 @@ Calculates how many consecutive seasons a player has been kept (not drafted)
 while remaining on a roster in the league.
 """
 
+import argparse
+import csv
 import json
 import os
 import requests
 import sys
 import time
+from datetime import datetime
+from typing import Any
 
 API_BASE = "https://api.sleeper.app/v1"
 CACHE_DIR = os.path.expanduser("~/.cache/sleeper-tenure-tracker")
@@ -18,85 +22,91 @@ PLAYERS_CACHE_FILE = os.path.join(CACHE_DIR, "players.json")
 CACHE_MAX_AGE = 86400  # 24 hours in seconds
 
 
-def get_user(username):
+def api_request(url: str, error_context: str) -> Any:
+    """Make an API request with error handling."""
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.Timeout:
+        print(f"\nError: Request timed out while {error_context}")
+        sys.exit(1)
+    except requests.exceptions.ConnectionError:
+        print(f"\nError: Could not connect to Sleeper API while {error_context}")
+        sys.exit(1)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            print(f"\nError: Not found while {error_context}")
+        else:
+            print(f"\nError: API returned status {e.response.status_code} while {error_context}")
+        sys.exit(1)
+
+
+def get_user(username: str) -> dict[str, Any]:
     """Get user info by username."""
-    resp = requests.get(f"{API_BASE}/user/{username}")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/user/{username}", f"fetching user '{username}'")
 
 
-def get_user_leagues(user_id, sport, season):
+def get_user_leagues(user_id: str, sport: str, season: str) -> list[dict[str, Any]]:
     """Get all leagues for a user in a given season."""
-    resp = requests.get(f"{API_BASE}/user/{user_id}/leagues/{sport}/{season}")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/user/{user_id}/leagues/{sport}/{season}", f"fetching leagues for season {season}")
 
 
-def get_league(league_id):
+def get_league(league_id: str) -> dict[str, Any]:
     """Get league details."""
-    resp = requests.get(f"{API_BASE}/league/{league_id}")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/league/{league_id}", "fetching league details")
 
 
-def get_league_users(league_id):
+def get_league_users(league_id: str) -> list[dict[str, Any]]:
     """Get all users in a league."""
-    resp = requests.get(f"{API_BASE}/league/{league_id}/users")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/league/{league_id}/users", "fetching league users")
 
 
-def get_league_rosters(league_id):
+def get_league_rosters(league_id: str) -> list[dict[str, Any]]:
     """Get all rosters in a league."""
-    resp = requests.get(f"{API_BASE}/league/{league_id}/rosters")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/league/{league_id}/rosters", "fetching rosters")
 
 
-def get_league_drafts(league_id):
+def get_league_drafts(league_id: str) -> list[dict[str, Any]]:
     """Get drafts for a league."""
-    resp = requests.get(f"{API_BASE}/league/{league_id}/drafts")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/league/{league_id}/drafts", "fetching drafts")
 
 
-def get_draft_picks(draft_id):
+def get_draft_picks(draft_id: str) -> list[dict[str, Any]]:
     """Get all picks from a draft."""
-    resp = requests.get(f"{API_BASE}/draft/{draft_id}/picks")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/draft/{draft_id}/picks", "fetching draft picks")
 
 
-def get_matchups(league_id, week):
+def get_matchups(league_id: str, week: int) -> list[dict[str, Any]]:
     """Get matchups for a given week."""
-    resp = requests.get(f"{API_BASE}/league/{league_id}/matchups/{week}")
-    resp.raise_for_status()
-    return resp.json()
+    return api_request(f"{API_BASE}/league/{league_id}/matchups/{week}", f"fetching week {week} matchups")
 
 
-def get_all_players():
-    """Get all NFL players, with daily caching."""
-    # Check if cache exists and is fresh
-    if os.path.exists(PLAYERS_CACHE_FILE):
+def get_all_players(refresh: bool = False) -> tuple[dict[str, Any], bool]:
+    """Get all NFL players, with daily caching.
+
+    Returns:
+        Tuple of (players dict, was_cached bool)
+    """
+    # Check if cache exists and is fresh (unless refresh requested)
+    if not refresh and os.path.exists(PLAYERS_CACHE_FILE):
         cache_age = time.time() - os.path.getmtime(PLAYERS_CACHE_FILE)
         if cache_age < CACHE_MAX_AGE:
             with open(PLAYERS_CACHE_FILE, "r") as f:
-                return json.load(f)
+                return json.load(f), True
 
     # Fetch fresh data
-    resp = requests.get(f"{API_BASE}/players/nfl")
-    resp.raise_for_status()
-    players = resp.json()
+    players = api_request(f"{API_BASE}/players/nfl", "fetching player database")
 
     # Save to cache
     os.makedirs(CACHE_DIR, exist_ok=True)
     with open(PLAYERS_CACHE_FILE, "w") as f:
         json.dump(players, f)
 
-    return players
+    return players, False
 
 
-def get_league_history(league_id):
+def get_league_history(league_id: str) -> list[dict[str, Any]]:
     """Trace back through all seasons of a league, returns list from oldest to newest."""
     leagues = []
     current_id = league_id
@@ -109,13 +119,13 @@ def get_league_history(league_id):
     return list(reversed(leagues))  # Oldest first
 
 
-def get_season_data(league):
+def get_season_data(league: dict[str, Any]) -> dict[str, Any]:
     """Get draft picks and week 1 rosters for a season."""
     league_id = league["league_id"]
 
     # Get draft picks
     drafts = get_league_drafts(league_id)
-    drafted_players = set()
+    drafted_players: set[str] = set()
 
     if drafts:
         draft_id = drafts[0]["draft_id"]
@@ -124,7 +134,7 @@ def get_season_data(league):
 
     # Get week 1 rosters
     matchups = get_matchups(league_id, 1)
-    week1_players = set()
+    week1_players: set[str] = set()
 
     for matchup in matchups:
         if matchup.get("players"):
@@ -137,7 +147,7 @@ def get_season_data(league):
     }
 
 
-def calculate_tenure(league_history):
+def calculate_tenure(league_history: list[dict[str, Any]]) -> dict[str, int]:
     """
     Calculate tenure for all players across seasons.
 
@@ -153,9 +163,9 @@ def calculate_tenure(league_history):
     Returns:
         dict mapping player_id -> current tenure (int)
     """
-    player_tenure = {}
-    previous_week1_roster = set()
-    previous_drafted = set()
+    player_tenure: dict[str, int] = {}
+    previous_week1_roster: set[str] = set()
+    previous_drafted: set[str] = set()
 
     for league in league_history:
         season_data = get_season_data(league)
@@ -196,7 +206,7 @@ def calculate_tenure(league_history):
     return player_tenure
 
 
-def get_current_roster_info(league_id):
+def get_current_roster_info(league_id: str) -> dict[str, str]:
     """Get current roster info: player_id -> owner display name mapping."""
     rosters = get_league_rosters(league_id)
     users = get_league_users(league_id)
@@ -205,7 +215,7 @@ def get_current_roster_info(league_id):
     owner_names = {user["user_id"]: user.get("display_name") or user.get("username", "Unknown") for user in users}
 
     # Map player_id to owner display_name
-    player_owners = {}
+    player_owners: dict[str, str] = {}
     for roster in rosters:
         owner_name = owner_names.get(roster["owner_id"], "Unknown")
         for player_id in roster.get("players", []):
@@ -214,54 +224,83 @@ def get_current_roster_info(league_id):
     return player_owners
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python tenure_tracker.py <username> [season]")
-        print("  username: Sleeper username")
-        print("  season: (optional) Season year, defaults to 2025")
-        sys.exit(1)
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Calculate player tenure for Sleeper fantasy football leagues"
+    )
+    parser.add_argument("username", help="Sleeper username")
+    parser.add_argument(
+        "season",
+        nargs="?",
+        default=str(datetime.now().year),
+        help=f"Season year (default: {datetime.now().year})"
+    )
+    parser.add_argument(
+        "--csv",
+        action="store_true",
+        help="Output in CSV format"
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Force refresh of cached player database"
+    )
+    args = parser.parse_args()
 
-    username = sys.argv[1]
-    season = sys.argv[2] if len(sys.argv) > 2 else "2025"
+    username = args.username
+    season = args.season
+    output_csv = args.csv
 
     # Get user and their leagues
-    print(f"Fetching data for {username}...", end=" ", flush=True)
+    if not output_csv:
+        print(f"Fetching data for {username}...", end=" ", flush=True)
     user = get_user(username)
     user_id = user["user_id"]
-    print("OK")
+    if not output_csv:
+        print("OK")
 
     leagues = get_user_leagues(user_id, "nfl", season)
     if not leagues:
-        print(f"No NFL leagues found for {username} in {season}")
+        print(f"No NFL leagues found for {username} in {season}", file=sys.stderr)
         sys.exit(1)
 
     # Use first league (or could prompt for selection)
     current_league = leagues[0]
-    print(f"League: {current_league['name']}")
+    if not output_csv:
+        print(f"League: {current_league['name']}")
 
     # Get league history
-    print("Tracing league history...", end=" ", flush=True)
+    if not output_csv:
+        print("Tracing league history...", end=" ", flush=True)
     league_history = get_league_history(current_league["league_id"])
     seasons_list = [l['season'] for l in league_history]
-    print(f"OK ({len(league_history)} seasons: {', '.join(seasons_list)})")
+    if not output_csv:
+        print(f"OK ({len(league_history)} seasons: {', '.join(seasons_list)})")
 
     # Calculate tenure
-    print("Calculating tenure...", end=" ", flush=True)
+    if not output_csv:
+        print("Calculating tenure...", end=" ", flush=True)
     player_tenure = calculate_tenure(league_history)
-    print("OK")
+    if not output_csv:
+        print("OK")
 
     # Get current roster info
-    print("Fetching current rosters...", end=" ", flush=True)
+    if not output_csv:
+        print("Fetching current rosters...", end=" ", flush=True)
     player_owners = get_current_roster_info(current_league["league_id"])
-    print("OK")
+    if not output_csv:
+        print("OK")
 
     # Get player details
-    print("Fetching player database...", end=" ", flush=True)
-    all_players = get_all_players()
-    print("OK")
+    if not output_csv:
+        print("Fetching player database...", end=" ", flush=True)
+    all_players, was_cached = get_all_players(refresh=args.refresh)
+    if not output_csv:
+        cache_status = " (cached)" if was_cached else ""
+        print(f"OK{cache_status}")
 
     # Build output: players with tenure > 0 on current rosters
-    results = []
+    results: list[dict[str, Any]] = []
     for player_id, owner in player_owners.items():
         tenure = player_tenure.get(player_id, 0)
         if tenure > 0:
@@ -280,31 +319,38 @@ def main():
                 "player": f"{first_name} {last_name}".strip(),
                 "position": position,
                 "owner": owner,
-                "tenure": tenure,
+                "tenure": tenure + 1,  # Projected tenure for next season
             })
 
     # Sort by owner ascending, then by tenure descending
     results.sort(key=lambda x: (x["owner"].lower(), -x["tenure"]))
 
-    # Calculate column widths
     next_season = int(season) + 1
-    tenure_header = f"Tenure ({next_season})"
-    col_player = max(len("Player"), max((len(r["player"]) for r in results), default=0))
-    col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
-    col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
-    col_tenure = len(tenure_header)
 
-    # Print table
-    print()
-    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {tenure_header:>{col_tenure}}"
-    print(header)
-    print("=" * len(header))
+    if output_csv:
+        # CSV output
+        writer = csv.writer(sys.stdout)
+        writer.writerow(["Player", "Pos", "Owner", f"Tenure ({next_season})"])
+        for r in results:
+            writer.writerow([r["player"], r["position"], r["owner"], r["tenure"]])
+    else:
+        # Table output
+        tenure_header = f"Tenure ({next_season})"
+        col_player = max(len("Player"), max((len(r["player"]) for r in results), default=0))
+        col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
+        col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
+        col_tenure = len(tenure_header)
 
-    for r in results:
-        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure'] + 1:>{col_tenure}}")
+        print()
+        header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {tenure_header:>{col_tenure}}"
+        print(header)
+        print("=" * len(header))
 
-    print()
-    print(f"Total players with tenure greater than 1: {len(results)}")
+        for r in results:
+            print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}")
+
+        print()
+        print(f"Total players with tenure greater than 1: {len(results)}")
 
 
 if __name__ == "__main__":

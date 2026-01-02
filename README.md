@@ -37,7 +37,7 @@ Tenure is a **league-wide** concept tracking how many consecutive seasons a play
 
 ## Installation
 
-Requires Python 3.6+ and the `requests` library.
+Requires Python 3.9+ and the `requests` library.
 
 ```bash
 git clone https://github.com/knix24/sleeper-tenure-tracker.git
@@ -48,11 +48,17 @@ pip install requests
 ## Usage
 
 ```bash
-python tenure_tracker.py <sleeper_username> [season]
+python tenure_tracker.py <sleeper_username> [season] [options]
 ```
 
+**Arguments:**
 - `sleeper_username`: Your Sleeper username (or any league member)
-- `season`: (optional) Season year, defaults to 2025
+- `season`: (optional) Season year, defaults to current year
+
+**Options:**
+- `--csv`: Output in CSV format (for spreadsheets)
+- `--refresh`: Force refresh of cached player database
+- `-h, --help`: Show help message
 
 ## Example Output
 
@@ -62,7 +68,7 @@ League: Pigskin Prophets Dynasty
 Tracing league history... OK (4 seasons: 2022, 2023, 2024, 2025)
 Calculating tenure... OK
 Fetching current rosters... OK
-Fetching player database... OK
+Fetching player database... OK (cached)
 
 Player               Pos  Owner           Tenure (2026)
 ========================================================
