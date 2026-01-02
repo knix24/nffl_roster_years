@@ -12,7 +12,6 @@ For dynasty and keeper leagues, this tool analyzes your league's history and sho
 | Pos | Position |
 | Owner | Current roster owner |
 | Tenure | Consecutive seasons kept |
-| First Drafted | Season when the player was originally drafted |
 
 ## How Tenure Is Calculated
 
@@ -68,15 +67,15 @@ Calculating tenure... OK
 Fetching current rosters... OK
 Fetching player database... OK
 
-Player               Pos  Owner           Tenure  First Drafted
-===============================================================
-Josh Jacobs          RB   angus0024            3  2022
-Amon-Ra St. Brown    WR   angus0024            3  2022
-Jahmyr Gibbs         RB   angus0024            2  2023
-Bucky Irving         RB   angus0024            1  2024
+Player               Pos  Owner           Tenure
+================================================
+Josh Jacobs          RB   angus0024            3
+Amon-Ra St. Brown    WR   angus0024            3
+Jahmyr Gibbs         RB   angus0024            2
+Bucky Irving         RB   angus0024            1
 ...
-Courtland Sutton     WR   write2dkv            2  2022
-Chase Brown          RB   write2dkv            1  2023
+Courtland Sutton     WR   write2dkv            2
+Chase Brown          RB   write2dkv            1
 
 Total players with tenure > 0: 53
 ```
@@ -98,7 +97,6 @@ Results are sorted by owner (ascending), then by tenure (descending).
 
 ## Notes
 
-- `<YEAR` in First Drafted (e.g., `<2022`) means the player was a keeper in the earliest season but was drafted before the league history begins
 - If you have multiple leagues, the tool uses the first one found
 - Only players currently rostered with tenure > 0 are shown
 

@@ -266,7 +266,6 @@ def main():
                 "position": position,
                 "owner": owner,
                 "tenure": tenure,
-                "first_drafted": player_first_drafted.get(player_id, "Unknown")
             })
 
     # Sort by owner ascending, then by tenure descending
@@ -277,16 +276,15 @@ def main():
     col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
     col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
     col_tenure = len("Tenure")
-    col_drafted = max(len("First Drafted"), max((len(str(r["first_drafted"])) for r in results), default=0))
 
     # Print table
     print()
-    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {'Tenure':>{col_tenure}}  {'First Drafted':<{col_drafted}}"
+    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {'Tenure':>{col_tenure}}"
     print(header)
     print("=" * len(header))
 
     for r in results:
-        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}  {r['first_drafted']:<{col_drafted}}")
+        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}")
 
     print()
     print(f"Total players with tenure > 0: {len(results)}")
