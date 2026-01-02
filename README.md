@@ -57,8 +57,8 @@ python tenure_tracker.py <sleeper_username> [season]
 ## Example Output
 
 ```
-Fetching data for angus0024... OK
-League: NFFL 30th ANNIVERSARY SZN
+Fetching data for gridiron_guy... OK
+League: Pigskin Prophets Dynasty
 Tracing league history... OK (4 seasons: 2022, 2023, 2024, 2025)
 Calculating tenure... OK
 Fetching current rosters... OK
@@ -66,13 +66,13 @@ Fetching player database... OK
 
 Player               Pos  Owner           Tenure (2026)
 ========================================================
-Josh Jacobs          RB   angus0024                    4
-Amon-Ra St. Brown    WR   angus0024                    4
-Jahmyr Gibbs         RB   angus0024                    3
-Bucky Irving         RB   angus0024                    2
+Josh Jacobs          RB   thunderfoot                  4
+Amon-Ra St. Brown    WR   thunderfoot                  4
+Jahmyr Gibbs         RB   thunderfoot                  3
+Bucky Irving         RB   thunderfoot                  2
 ...
-Courtland Sutton     WR   write2dkv                    3
-Chase Brown          RB   write2dkv                    2
+Courtland Sutton     WR   redzone_rick                 3
+Chase Brown          RB   redzone_rick                 2
 
 Total players with tenure greater than 1: 53
 ```
