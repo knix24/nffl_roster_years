@@ -69,7 +69,7 @@ def get_matchups(league_id, week):
 
 
 def get_all_players():
-    """Get all NFL players (cached locally due to size)."""
+    """Get all NFL players."""
     resp = requests.get(f"{API_BASE}/players/nfl")
     resp.raise_for_status()
     return resp.json()
@@ -130,17 +130,14 @@ def calculate_tenure(league_history):
     - Player is not on any week 1 roster (not kept)
 
     Returns:
-        player_tenure: dict mapping player_id -> current tenure (int)
-        player_first_drafted: dict mapping player_id -> year first drafted (str)
+        dict mapping player_id -> current tenure (int)
     """
     player_tenure = {}
-    player_first_drafted = {}
     previous_week1_roster = set()
     previous_drafted = set()
 
     for league in league_history:
         season_data = get_season_data(league)
-        season = season_data["season"]
         drafted = season_data["drafted"]
         week1_roster = season_data["week1_roster"]
 
@@ -161,8 +158,6 @@ def calculate_tenure(league_history):
         # Process drafted players - reset tenure to 0
         for player_id in drafted:
             player_tenure[player_id] = 0
-            if player_id not in player_first_drafted:
-                player_first_drafted[player_id] = season
 
         # Process keepers - increment tenure (only if they were in league last season)
         for player_id in keepers:
@@ -172,13 +167,12 @@ def calculate_tenure(league_history):
                 # Player appeared as keeper without being drafted in our history
                 # This can happen if they were drafted before our league history starts
                 player_tenure[player_id] = 1
-                player_first_drafted[player_id] = f"<{league_history[0]['season']}"
 
         # Update previous season tracking for next iteration
         previous_week1_roster = week1_roster
         previous_drafted = drafted
 
-    return player_tenure, player_first_drafted
+    return player_tenure
 
 
 def get_current_roster_info(league_id):
@@ -232,7 +226,7 @@ def main():
 
     # Calculate tenure
     print("Calculating tenure...", end=" ", flush=True)
-    player_tenure, player_first_drafted = calculate_tenure(league_history)
+    player_tenure = calculate_tenure(league_history)
     print("OK")
 
     # Get current roster info
