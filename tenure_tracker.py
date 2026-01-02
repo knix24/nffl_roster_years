@@ -289,7 +289,7 @@ def main():
         print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure'] + 1:>{col_tenure}}")
 
     print()
-    print(f"Total players with tenure > 0: {len(results)}")
+    print(f"Total players with tenure greater than 1: {len(results)}")
 
 
 if __name__ == "__main__":

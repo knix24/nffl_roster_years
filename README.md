@@ -77,7 +77,7 @@ Bucky Irving         RB   angus0024                    2
 Courtland Sutton     WR   write2dkv                    3
 Chase Brown          RB   write2dkv                    2
 
-Total players with tenure > 0: 53
+Total players with tenure greater than 1: 53
 ```
 
 Results are sorted by owner (ascending), then by tenure (descending).
