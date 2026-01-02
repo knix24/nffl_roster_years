@@ -44,6 +44,8 @@ Tenure is a **league-wide** concept tracking how many consecutive seasons a play
 Requires Python 3.6+ and the `requests` library.
 
 ```bash
+git clone https://github.com/knix24/sleeper-tenure-tracker.git
+cd sleeper-tenure-tracker
 pip install requests
 ```
 
