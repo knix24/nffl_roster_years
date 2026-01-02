@@ -21,6 +21,15 @@ CACHE_DIR = os.path.expanduser("~/.cache/sleeper-tenure-tracker")
 PLAYERS_CACHE_FILE = os.path.join(CACHE_DIR, "players.json")
 CACHE_MAX_AGE = 86400  # 24 hours in seconds
 
+# Global flag for quiet mode (CSV output)
+_quiet = False
+
+
+def log(message: str, end: str = "\n", flush: bool = False) -> None:
+    """Print a status message unless in quiet mode."""
+    if not _quiet:
+        print(message, end=end, flush=flush)
+
 
 def api_request(url: str, error_context: str) -> Any:
     """Make an API request with error handling."""
@@ -176,7 +185,7 @@ def calculate_tenure(league_history: list[dict[str, Any]]) -> dict[str, int]:
         eligible_for_keeper = previous_week1_roster | previous_drafted
 
         # True keepers: on week 1 roster, not drafted, AND were in league previous season
-        keepers = (week1_roster - drafted) & eligible_for_keeper if eligible_for_keeper else set()
+        keepers = (week1_roster - drafted) & eligible_for_keeper
 
         # Reset tenure for players who were in league but are not on any week 1 roster
         # (not drafted and not kept = dropped from league)
@@ -224,7 +233,103 @@ def get_current_roster_info(league_id: str) -> dict[str, str]:
     return player_owners
 
 
+def select_league(leagues: list[dict[str, Any]], username: str, league_num: int | None) -> dict[str, Any]:
+    """Select a league from the list, prompting user if necessary."""
+    if league_num is not None:
+        if league_num < 1 or league_num > len(leagues):
+            print(f"Error: League number must be between 1 and {len(leagues)}", file=sys.stderr)
+            sys.exit(1)
+        return leagues[league_num - 1]
+
+    if len(leagues) == 1:
+        return leagues[0]
+
+    # Multiple leagues, prompt for selection
+    print(f"\nFound {len(leagues)} leagues for {username}:")
+    for i, league in enumerate(leagues, 1):
+        print(f"  {i}. {league['name']}")
+    print()
+
+    while True:
+        try:
+            choice = input(f"Select league (1-{len(leagues)}): ").strip()
+            choice_num = int(choice)
+            if 1 <= choice_num <= len(leagues):
+                print()
+                return leagues[choice_num - 1]
+            print(f"Please enter a number between 1 and {len(leagues)}")
+        except ValueError:
+            print("Please enter a valid number")
+        except (KeyboardInterrupt, EOFError):
+            print("\nCancelled")
+            sys.exit(0)
+
+
+def build_results(
+    player_owners: dict[str, str],
+    player_tenure: dict[str, int],
+    all_players: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Build the results list from player data."""
+    results: list[dict[str, Any]] = []
+
+    for player_id, owner in player_owners.items():
+        tenure = player_tenure.get(player_id, 0)
+        if tenure > 0:
+            player_info = all_players.get(player_id, {})
+            first_name = player_info.get("first_name", "")
+            last_name = player_info.get("last_name", player_id)
+            position = player_info.get("position", "")
+
+            # Handle team defenses
+            if not first_name and not position:
+                first_name = player_info.get("team", "")
+                last_name = "DEF"
+                position = "DEF"
+
+            results.append({
+                "player": f"{first_name} {last_name}".strip(),
+                "position": position,
+                "owner": owner,
+                "tenure": tenure + 1,  # Projected tenure for next season
+            })
+
+    # Sort by owner ascending, then by tenure descending
+    results.sort(key=lambda x: (x["owner"].lower(), -x["tenure"]))
+    return results
+
+
+def print_table(results: list[dict[str, Any]], next_season: int) -> None:
+    """Print results as a formatted table."""
+    tenure_header = f"Tenure ({next_season})"
+    col_player = max(len("Player"), max((len(r["player"]) for r in results), default=0))
+    col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
+    col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
+    col_tenure = len(tenure_header)
+
+    print()
+    header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {tenure_header:>{col_tenure}}"
+    print(header)
+    print("=" * len(header))
+
+    for r in results:
+        print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}")
+
+    print()
+    print(f"Total players with tenure greater than 1: {len(results)}")
+
+
+def print_csv(results: list[dict[str, Any]], next_season: int) -> None:
+    """Print results as CSV."""
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["Player", "Pos", "Owner", f"Tenure ({next_season})"])
+    for r in results:
+        writer.writerow([r["player"], r["position"], r["owner"], r["tenure"]])
+
+
 def main() -> None:
+    global _quiet
+
     parser = argparse.ArgumentParser(
         description="Calculate player tenure for Sleeper fantasy football leagues"
     )
@@ -253,139 +358,52 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    username = args.username
-    season = args.season
-    output_csv = args.csv
+    _quiet = args.csv
 
     # Get user and their leagues
-    if not output_csv:
-        print(f"Fetching data for {username}...", end=" ", flush=True)
-    user = get_user(username)
-    user_id = user["user_id"]
-    if not output_csv:
-        print("OK")
+    log(f"Fetching data for {args.username}...", end=" ", flush=True)
+    user = get_user(args.username)
+    log("OK")
 
-    leagues = get_user_leagues(user_id, "nfl", season)
+    leagues = get_user_leagues(user["user_id"], "nfl", args.season)
     if not leagues:
-        print(f"No NFL leagues found for {username} in {season}", file=sys.stderr)
+        print(f"No NFL leagues found for {args.username} in {args.season}", file=sys.stderr)
         sys.exit(1)
 
     # Select league
-    if args.league is not None:
-        # Use specified league number
-        if args.league < 1 or args.league > len(leagues):
-            print(f"Error: League number must be between 1 and {len(leagues)}", file=sys.stderr)
-            sys.exit(1)
-        current_league = leagues[args.league - 1]
-    elif len(leagues) == 1:
-        # Only one league, use it
-        current_league = leagues[0]
-    else:
-        # Multiple leagues, prompt for selection
-        print(f"\nFound {len(leagues)} leagues for {username}:")
-        for i, league in enumerate(leagues, 1):
-            print(f"  {i}. {league['name']}")
-        print()
-        while True:
-            try:
-                choice = input(f"Select league (1-{len(leagues)}): ").strip()
-                choice_num = int(choice)
-                if 1 <= choice_num <= len(leagues):
-                    current_league = leagues[choice_num - 1]
-                    break
-                print(f"Please enter a number between 1 and {len(leagues)}")
-            except ValueError:
-                print("Please enter a valid number")
-            except (KeyboardInterrupt, EOFError):
-                print("\nCancelled")
-                sys.exit(0)
-        print()
-
-    if not output_csv:
-        print(f"League: {current_league['name']}")
+    current_league = select_league(leagues, args.username, args.league)
+    log(f"League: {current_league['name']}")
 
     # Get league history
-    if not output_csv:
-        print("Tracing league history...", end=" ", flush=True)
+    log("Tracing league history...", end=" ", flush=True)
     league_history = get_league_history(current_league["league_id"])
-    seasons_list = [l['season'] for l in league_history]
-    if not output_csv:
-        print(f"OK ({len(league_history)} seasons: {', '.join(seasons_list)})")
+    seasons_list = [league['season'] for league in league_history]
+    log(f"OK ({len(league_history)} seasons: {', '.join(seasons_list)})")
 
     # Calculate tenure
-    if not output_csv:
-        print("Calculating tenure...", end=" ", flush=True)
+    log("Calculating tenure...", end=" ", flush=True)
     player_tenure = calculate_tenure(league_history)
-    if not output_csv:
-        print("OK")
+    log("OK")
 
     # Get current roster info
-    if not output_csv:
-        print("Fetching current rosters...", end=" ", flush=True)
+    log("Fetching current rosters...", end=" ", flush=True)
     player_owners = get_current_roster_info(current_league["league_id"])
-    if not output_csv:
-        print("OK")
+    log("OK")
 
     # Get player details
-    if not output_csv:
-        print("Fetching player database...", end=" ", flush=True)
+    log("Fetching player database...", end=" ", flush=True)
     all_players, was_cached = get_all_players(refresh=args.refresh)
-    if not output_csv:
-        cache_status = " (cached)" if was_cached else ""
-        print(f"OK{cache_status}")
+    cache_status = " (cached)" if was_cached else ""
+    log(f"OK{cache_status}")
 
-    # Build output: players with tenure > 0 on current rosters
-    results: list[dict[str, Any]] = []
-    for player_id, owner in player_owners.items():
-        tenure = player_tenure.get(player_id, 0)
-        if tenure > 0:
-            player_info = all_players.get(player_id, {})
-            first_name = player_info.get("first_name", "")
-            last_name = player_info.get("last_name", player_id)
-            position = player_info.get("position", "")
+    # Build and output results
+    results = build_results(player_owners, player_tenure, all_players)
+    next_season = int(args.season) + 1
 
-            # Handle team defenses
-            if not first_name and not position:
-                first_name = player_info.get("team", "")
-                last_name = "DEF"
-                position = "DEF"
-
-            results.append({
-                "player": f"{first_name} {last_name}".strip(),
-                "position": position,
-                "owner": owner,
-                "tenure": tenure + 1,  # Projected tenure for next season
-            })
-
-    # Sort by owner ascending, then by tenure descending
-    results.sort(key=lambda x: (x["owner"].lower(), -x["tenure"]))
-
-    next_season = int(season) + 1
-
-    if output_csv:
-        # CSV output
-        writer = csv.writer(sys.stdout)
-        writer.writerow(["Player", "Pos", "Owner", f"Tenure ({next_season})"])
-        for r in results:
-            writer.writerow([r["player"], r["position"], r["owner"], r["tenure"]])
+    if args.csv:
+        print_csv(results, next_season)
     else:
-        # Table output
-        tenure_header = f"Tenure ({next_season})"
-        col_player = max(len("Player"), max((len(r["player"]) for r in results), default=0))
-        col_pos = max(len("Pos"), max((len(r["position"]) for r in results), default=0))
-        col_owner = max(len("Owner"), max((len(r["owner"]) for r in results), default=0))
-        col_tenure = len(tenure_header)
-
-        print()
-        header = f"{'Player':<{col_player}}  {'Pos':<{col_pos}}  {'Owner':<{col_owner}}  {tenure_header:>{col_tenure}}"
-        print(header)
-        print("=" * len(header))
-
-        for r in results:
-            print(f"{r['player']:<{col_player}}  {r['position']:<{col_pos}}  {r['owner']:<{col_owner}}  {r['tenure']:>{col_tenure}}")
-
-        print()
-        print(f"Total players with tenure greater than 1: {len(results)}")
+        print_table(results, next_season)
 
 
 if __name__ == "__main__":
