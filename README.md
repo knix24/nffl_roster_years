@@ -4,7 +4,7 @@ A command-line tool that calculates how many consecutive seasons each player has
 
 ## What It Does
 
-For dynasty and keeper leagues, this tool analyzes your league's history and shows players with tenure > 0:
+For dynasty and keeper leagues, this tool analyzes your league's history and shows each player's projected tenure for the upcoming season:
 
 | Column | Description |
 |--------|-------------|
@@ -17,17 +17,14 @@ For dynasty and keeper leagues, this tool analyzes your league's history and sho
 
 Tenure is a **league-wide** concept tracking how many consecutive seasons a player has avoided the draft while remaining rostered.
 
-**Tenure = 0** when:
-- Player is drafted by ANY team in the league
+**Tenure resets to 0** when:
+- Player is drafted by any team
+- Player is not on any week 1 roster (dropped/not kept)
 
 **Tenure increments (+1)** when:
-- Player is on ANY team's week 1 roster
-- Player was NOT drafted in that season's draft
-- Player was in the league the previous season (on week 1 roster OR drafted)
-
-**Tenure resets to 0** when:
-- Player is drafted by any team, OR
-- Player is not on any week 1 roster (dropped/not kept)
+- Player is on any team's week 1 roster
+- Player was NOT drafted that season
+- Player was in the league the previous season
 
 ### Example
 
@@ -93,12 +90,12 @@ Results are sorted by owner (ascending), then by tenure (descending).
    - Players drafted get tenure = 0
    - Players kept (on week 1 roster, not drafted, were in league previous season) get tenure + 1
    - Players not on any week 1 roster get tenure reset to 0
-5. Displays results for currently rostered players with tenure > 0
+5. Displays projected tenure for the next season (current tenure + 1) for all currently rostered keepers
 
 ## Notes
 
 - If you have multiple leagues, the tool uses the first one found
-- Only players currently rostered with tenure > 0 are shown
+- Player database is cached locally for 24 hours (`~/.cache/sleeper-tenure-tracker/`)
 
 ## API
 
