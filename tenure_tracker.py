@@ -6,10 +6,16 @@ Calculates how many consecutive seasons a player has been kept (not drafted)
 while remaining on a roster in the league.
 """
 
+import json
+import os
 import requests
 import sys
+import time
 
 API_BASE = "https://api.sleeper.app/v1"
+CACHE_DIR = os.path.expanduser("~/.cache/sleeper-tenure-tracker")
+PLAYERS_CACHE_FILE = os.path.join(CACHE_DIR, "players.json")
+CACHE_MAX_AGE = 86400  # 24 hours in seconds
 
 
 def get_user(username):
@@ -69,10 +75,25 @@ def get_matchups(league_id, week):
 
 
 def get_all_players():
-    """Get all NFL players."""
+    """Get all NFL players, with daily caching."""
+    # Check if cache exists and is fresh
+    if os.path.exists(PLAYERS_CACHE_FILE):
+        cache_age = time.time() - os.path.getmtime(PLAYERS_CACHE_FILE)
+        if cache_age < CACHE_MAX_AGE:
+            with open(PLAYERS_CACHE_FILE, "r") as f:
+                return json.load(f)
+
+    # Fetch fresh data
     resp = requests.get(f"{API_BASE}/players/nfl")
     resp.raise_for_status()
-    return resp.json()
+    players = resp.json()
+
+    # Save to cache
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(PLAYERS_CACHE_FILE, "w") as f:
+        json.dump(players, f)
+
+    return players
 
 
 def get_league_history(league_id):
