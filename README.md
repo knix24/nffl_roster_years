@@ -103,6 +103,8 @@ Results are sorted by owner (ascending), then by tenure (descending).
 
 - If you have multiple leagues, the tool prompts you to select one (use `--league N` to skip the prompt)
 - Player database is cached locally for 24 hours (`~/.cache/sleeper-tenure-tracker/`)
+- Use `--refresh` if you notice outdated player names in the output
+- Friendly error messages are shown if the API fails or a user/league isn't found
 
 ## API
 
